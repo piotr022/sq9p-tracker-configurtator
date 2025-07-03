@@ -32,6 +32,7 @@ class FlashAccess:
         erase_offset = self.erase_idx * FlashAccess.img_block_size
         if erase_offset >= len(self.data):
             return bytearray()
+        print(f"sending erase frame {erase_offset}")
         erase_frame = struct.pack('<IIHB',
                                 FlashAccess.erase_sequence,
                                 self.start_address + erase_offset,
@@ -51,9 +52,11 @@ class FlashAccess:
         return tx_frame
 
     def receive_handler(self, rx_data):
-        if len(rx_data) != 1 or rx_data[0] != FlashAccess.ack_byte:
-            return self.progress_callback(-1)
-        
+        if not rx_data:
+            print("fa timeout or empty")
+        elif len(rx_data) < 1 or rx_data[0][0] != FlashAccess.ack_byte:
+            print(f"fa wrong data: {rx_data[0]} != {FlashAccess.ack_byte}")
+
         erase_frame = self.encode_next_erase_frame()
         if len(erase_frame):
             next_frame = erase_frame
@@ -63,7 +66,7 @@ class FlashAccess:
                 return self.progress_callback(100)
             
         self.comm_interface.send_async(next_frame)
-        self.comm_interface.receive_async(1, self.receive_handler)        
+        self.comm_interface.receive_async(1, self.receive_handler, 2000)
 
     def encode_header(self, address, len):
         return struct.pack('<IIHB',

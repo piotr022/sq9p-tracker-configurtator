@@ -2,7 +2,7 @@ import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox, QLabel, QLineEdit, QGroupBox, QFormLayout, QProgressBar, QTabWidget, QCheckBox, QFileDialog, QListWidget, QListWidgetItem
 from PyQt5.QtSerialPort import QSerialPort, QSerialPortInfo
 from PyQt5.QtCore import pyqtSlot, QStringListModel
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QFontMetrics
 from objects import TPoint
 
 class SerialConfigurator(QWidget):
@@ -13,6 +13,7 @@ class SerialConfigurator(QWidget):
         self.fw_uploader = fw_uploader
         self.img_uploader = img_uploader
         self.fw_file = None
+        self.connected = False
         super().__init__()
         self.initUI()
         self.init_layout_lists()
@@ -74,13 +75,22 @@ class SerialConfigurator(QWidget):
     def connect(self):
         portName = self.comboBox.currentText()
         # self.serialPort = QSerialPort()
+        if self.connected:
+            self.serialPort.close()
+            self.connected = False
+
         self.serialPort.setPortName(portName)
         self.serialPort.setBaudRate(115200)
 
+
         if self.serialPort.open(QSerialPort.ReadWrite, ):
-            self.connectionLabel.setText("Connected to " + portName)
+            self.connected = True
+            self.connectionLabel.setText("Connecting ..." + portName)
+            self.get_command_async()
         else:
+            self.connected = False
             self.connectionLabel.setText("Failed to connect to " + portName)
+            self.serialPort.close()
 
     def set_command(self):
         for key, obj_qt, setter, getter in self.config_map:
@@ -119,6 +129,8 @@ class SerialConfigurator(QWidget):
         self.progress_callback(progress)
         if progress != 100:
             return
+
+        self.connectionLabel.setText("Connected")
         #update qt objects
         for key, obj_qt, setter, getter in self.config_map:
             if obj_qt == None:
@@ -256,6 +268,10 @@ class SerialConfigurator(QWidget):
             layout.addWidget(QLabel("Frequency"))
 
             frequencyLine = QLineEdit()
+            frequencyLine.setMaxLength(8)
+            metrics = QFontMetrics(frequencyLine.font())
+            width = metrics.horizontalAdvance('0' * 8) + 10
+            frequencyLine.setFixedWidth(width)
             self.frequencyLines.append(frequencyLine)
             layout.addWidget(frequencyLine)
 

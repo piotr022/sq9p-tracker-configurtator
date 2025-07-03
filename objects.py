@@ -65,7 +65,7 @@ class ObjFreq(ObjBase):
                            self.frequency,
                            self.radio_mode & 0xFF,
                            self.tx_power & 0xFF,
-                           int(self.telemetry_psc) << 4 | int(self.position_psc) & 0xFF)
+                           ((int(self.telemetry_psc) << 4) | int(self.position_psc)) & 0xFF)
     
     def deserialize(self, raw_data) -> bool:
         if len(raw_data) != self.len:
@@ -78,7 +78,9 @@ class ObjFreq(ObjBase):
             psc_bath
         ) = struct.unpack('<IBBB', raw_data)
         self.telemetry_psc = (int(psc_bath) >> 4) & 0xFF
-        self.position_psc = int(psc_bath) & 0xFF
+        self.position_psc = int(psc_bath) & 0xF
+
+        print(f'!!!! freq: {self.frequency}')
         return True
     
 class ObjTable(ObjBase):
@@ -132,27 +134,30 @@ class ObjGeoConf(ObjBase):
 
         return True
     
+
 class ObjSstvConfig(ObjBase):
     def __init__(self, db_id, obj_id):
         ObjBase.__init__(self, db_id, obj_id)
         self.len = 53
-        self.sstv_text_field = str('\0') * self.len
+        self.sstv_text_field = '\0' * 50
         self.images_cnt = 0
         self.images_per_freq = 0
         self.b_header_enabled = True
 
     def serialize(self):
-        return struct.pack('<50sBBB', self.sstv_text_field,
-                           self.images_cnt,
-                           self.images_per_freq,
-                           self.b_header_enabled)
-    
+        return struct.pack(
+            '<50sBBB',
+            self.sstv_text_field.encode('ascii')[:50].ljust(50, b'\0'),
+            self.images_cnt,
+            self.images_per_freq,
+            int(self.b_header_enabled)
+        )
+
     def deserialize(self, raw_data):
         if len(raw_data) != self.len:
             return False
-        
-        (self.sstv_text_field,
-        self.images_cnt,
-        self.images_per_freq,
-        self.b_header_enabled) = struct.unpack('<50sBBB')
+
+        sstv_text_bytes, self.images_cnt, self.images_per_freq, b_header_flag = struct.unpack('<50sBBB', raw_data)
+        self.sstv_text_field = sstv_text_bytes.decode('ascii').rstrip('\0')
+        self.b_header_enabled = bool(b_header_flag)
         return True
